@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1088429235460",
+    "project_id": "day-by-dayy",
+    "storage_bucket": "day-by-dayy.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1088429235460:android:1c97ca9e54371de1d40451",
+        "android_client_info": {
+          "package_name": "com.example.daybyday"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDtsFBFp8XH8USkghWjbvc3M91GE0sDgfw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
