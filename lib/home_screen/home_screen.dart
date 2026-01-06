@@ -1,7 +1,13 @@
+// lib/home_screen/home_screen.dart (UPDATED)
 import 'package:daybyday/assessments/asssessments.dart';
 import 'package:daybyday/check_in/checkin_screen.dart';
+import 'package:daybyday/goal_setting/goal_setting_screen.dart';
+import 'package:daybyday/services/user_service.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:daybyday/services/checkin_service.dart';
+import 'package:daybyday/services/goal_service.dart';
+import 'package:daybyday/services/analytics_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -11,21 +17,94 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // Track completion status - In production, fetch from Firestore
+  final _userService = UserService();
+  final _checkInService = CheckInService();
+  final _goalService = GoalService();
+  final _analyticsService = AnalyticsService();
+  
+  // Onboarding status
   bool hasCompletedPsychologicalAssessment = false;
   bool hasSetGoals = false;
+  
+  // Check-in status
   bool hasMorningCheckIn = false;
   bool hasEveningCheckIn = false;
   bool hasNightCheckIn = false;
+  
+  // Progress data
+  List<double> weeklyMoodData = [];
+  double averageMood = 0.0;
+  Map<String, int> goalStats = {};
+  
+  bool _isLoading = true;
+  String selectedPeriod = 'Week';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      // Load user profile
+      final userProfile = await _userService.getUserProfile(userId);
+      
+      // Load today's check-in status
+      final checkInStatus = await _checkInService.getTodayCheckInStatus(userId);
+      
+      // Load progress data
+      final moodTrend = await _analyticsService.getWeeklyMoodTrend(userId);
+      final stats = await _goalService.getGoalStats(userId, 'daily');
+      
+      // Calculate average mood
+      final avg = moodTrend.where((m) => m > 0).isEmpty 
+          ? 0.0 
+          : moodTrend.where((m) => m > 0).reduce((a, b) => a + b) / 
+            moodTrend.where((m) => m > 0).length;
+
+      setState(() {
+        hasCompletedPsychologicalAssessment = 
+            userProfile?['hasCompletedAssessment'] ?? false;
+        hasSetGoals = userProfile?['hasSetGoals'] ?? false;
+        hasMorningCheckIn = checkInStatus['morning'] ?? false;
+        hasEveningCheckIn = checkInStatus['evening'] ?? false;
+        hasNightCheckIn = checkInStatus['night'] ?? false;
+        weeklyMoodData = moodTrend;
+        averageMood = avg;
+        goalStats = stats;
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Error loading user data: $e');
+      setState(() => _isLoading = false);
+    }
+  }
+
+  bool get isOnboardingComplete => 
+      hasCompletedPsychologicalAssessment && hasSetGoals;
 
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
     final userName = user?.displayName ?? 'Alex';
-    final isOnboardingComplete = hasCompletedPsychologicalAssessment;
+
+    if (_isLoading) {
+      return const Scaffold(
+        backgroundColor: Color(0xFF61FF8F),
+        body: Center(
+          child: CircularProgressIndicator(color: Colors.white),
+        ),
+      );
+    }
 
     return Scaffold(
-      backgroundColor: const Color(0xFF62FF54),
+      backgroundColor: const Color(0xFF61FF8F),
       body: SafeArea(
         child: SingleChildScrollView(
           child: Padding(
@@ -45,7 +124,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           child: Text(
                             userName[0].toUpperCase(),
                             style: const TextStyle(
-                              color: Color(0xFF62FF54),
+                              color: Color(0xFF61FF8F),
                               fontWeight: FontWeight.bold,
                               fontSize: 18,
                             ),
@@ -93,57 +172,70 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 const SizedBox(height: 20),
 
-                // Get Started Section
-                const Text(
-                  'Get Started',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
+                // Get Started Section (Only show if onboarding NOT complete)
+                if (!isOnboardingComplete) ...[
+                  const Text(
+                    'Get Started',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
+                  const SizedBox(height: 12),
 
-                // Onboarding Cards Row
-                Row(
-                  children: [
-                    Expanded(
-                      child: _CompactOnboardingCard(
-                        icon: Icons.psychology_outlined,
-                        title: 'Psychological\nAssessment',
-                        subtitle: 'Understand yourself',
-                        isCompleted: hasCompletedPsychologicalAssessment,
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  const PsychologicalAssessmentScreen(),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _CompactOnboardingCard(
-                        icon: Icons.flag_outlined,
-                        title: 'Goal Setting',
-                        subtitle: 'Plan your growth journey',
-                        isCompleted: hasSetGoals,
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const GoalSettingScreen(),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
+                  // Onboarding Cards Row
+                  Row(
+                    children: [
+                      if (!hasCompletedPsychologicalAssessment)
+                        Expanded(
+                          child: _CompactOnboardingCard(
+                            icon: Icons.psychology_outlined,
+                            title: 'Psychological\nAssessment',
+                            subtitle: 'Understand yourself',
+                            isCompleted: hasCompletedPsychologicalAssessment,
+                            onTap: () async {
+                              final result = await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      const PsychologicalAssessmentScreen(),
+                                ),
+                              );
+                              // Reload data after returning from assessment
+                              if (mounted) {
+                                await _loadUserData();
+                              }
+                            },
+                          ),
+                        ),
+                      if (!hasCompletedPsychologicalAssessment && !hasSetGoals)
+                        const SizedBox(width: 12),
+                      if (!hasSetGoals)
+                        Expanded(
+                          child: _CompactOnboardingCard(
+                            icon: Icons.flag_outlined,
+                            title: 'Goal Setting',
+                            subtitle: 'Plan your growth journey',
+                            isCompleted: hasSetGoals,
+                            onTap: () async {
+                              final result = await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const GoalSettingScreen(),
+                                ),
+                              );
+                              // Reload data after returning from goal setting
+                              if (mounted) {
+                                await _loadUserData();
+                              }
+                            },
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                ],
 
                 // Daily Check-ins Section
                 const Text(
@@ -216,7 +308,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 const SizedBox(height: 24),
 
-                // Progress Overview Section
+                // Progress Overview Section (Only show if onboarding complete)
                 if (isOnboardingComplete) ...[
                   const Text(
                     'Progress Overview',
@@ -237,9 +329,21 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     child: Row(
                       children: [
-                        _TabButton(label: 'Week', isSelected: true),
-                        _TabButton(label: 'Month', isSelected: false),
-                        _TabButton(label: 'Year', isSelected: false),
+                        _TabButton(
+                          label: 'Week',
+                          isSelected: selectedPeriod == 'Week',
+                          onTap: () => setState(() => selectedPeriod = 'Week'),
+                        ),
+                        _TabButton(
+                          label: 'Month',
+                          isSelected: selectedPeriod == 'Month',
+                          onTap: () => setState(() => selectedPeriod = 'Month'),
+                        ),
+                        _TabButton(
+                          label: 'Year',
+                          isSelected: selectedPeriod == 'Year',
+                          onTap: () => setState(() => selectedPeriod = 'Year'),
+                        ),
                       ],
                     ),
                   ),
@@ -264,22 +368,33 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        const Row(
+                        Row(
                           children: [
                             Text(
-                              'Good',
-                              style: TextStyle(
+                              _getMoodLabel(averageMood),
+                              style: const TextStyle(
                                 fontSize: 24,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.black87,
                               ),
                             ),
-                            SizedBox(width: 8),
-                            Text(
-                              'vs Last Week +5%',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.green,
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF61FF8F).withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Text(
+                                'vs Last Week +5%',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF61FF8F),
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
                           ],
@@ -289,7 +404,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         SizedBox(
                           height: 120,
                           child: CustomPaint(
-                            painter: MoodChartPainter(),
+                            painter: MoodChartPainter(weeklyMoodData),
                             child: Container(),
                           ),
                         ),
@@ -373,15 +488,11 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         const SizedBox(height: 16),
                         _GoalProgressRow(
-                          goal: 'Meditate 3x a week',
-                          progress: '2/3',
-                          percentage: 0.66,
-                        ),
-                        const SizedBox(height: 12),
-                        _GoalProgressRow(
-                          goal: 'Finish design course',
-                          progress: '65%',
-                          percentage: 0.65,
+                          goal: 'Daily Goals',
+                          progress: '${goalStats['completed']}/${goalStats['total']}',
+                          percentage: goalStats['total'] == 0 
+                              ? 0.0 
+                              : (goalStats['completed']! / goalStats['total']!),
                         ),
                       ],
                     ),
@@ -400,12 +511,12 @@ class _HomeScreenState extends State<HomeScreen> {
                         Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF62FF54).withOpacity(0.2),
+                            color: const Color(0xFF61FF8F).withOpacity(0.2),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: const Icon(
                             Icons.lightbulb_outline,
-                            color: Color(0xFF62FF54),
+                            color: Color(0xFF61FF8F),
                             size: 24,
                           ),
                         ),
@@ -447,7 +558,12 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-
+  String _getMoodLabel(double avg) {
+    if (avg >= 4) return 'Great';
+    if (avg >= 3) return 'Good';
+    if (avg >= 2) return 'Okay';
+    return 'Low';
+  }
 }
 
 // Compact Onboarding Card
@@ -477,7 +593,7 @@ class _CompactOnboardingCard extends StatelessWidget {
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: isCompleted
-              ? Border.all(color: const Color(0xFF62FF54), width: 2)
+              ? Border.all(color: const Color(0xFF61FF8F), width: 2)
               : null,
         ),
         child: Column(
@@ -485,7 +601,7 @@ class _CompactOnboardingCard extends StatelessWidget {
           children: [
             Icon(
               isCompleted ? Icons.check_circle : icon,
-              color: isCompleted ? const Color(0xFF62FF54) : Colors.black87,
+              color: isCompleted ? const Color(0xFF61FF8F) : Colors.black87,
               size: 32,
             ),
             const SizedBox(height: 12),
@@ -577,7 +693,7 @@ class _CheckInCard extends StatelessWidget {
               ),
             ),
             if (isCompleted)
-              const Icon(Icons.check_circle, color: Color(0xFF62FF54))
+              const Icon(Icons.check_circle, color: Color(0xFF61FF8F))
             else
               Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey[400]),
           ],
@@ -591,25 +707,33 @@ class _CheckInCard extends StatelessWidget {
 class _TabButton extends StatelessWidget {
   final String label;
   final bool isSelected;
+  final VoidCallback onTap;
 
-  const _TabButton({required this.label, required this.isSelected});
+  const _TabButton({
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF62FF54) : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Text(
-          label,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-            color: Colors.black87,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: isSelected ? const Color(0xFF61FF8F) : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+              color: Colors.black87,
+            ),
           ),
         ),
       ),
@@ -712,7 +836,7 @@ class _GoalProgressRow extends StatelessWidget {
           child: LinearProgressIndicator(
             value: percentage,
             backgroundColor: Colors.grey[200],
-            valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF62FF54)),
+            valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF61FF8F)),
             minHeight: 6,
           ),
         ),
@@ -723,30 +847,44 @@ class _GoalProgressRow extends StatelessWidget {
 
 // Simple Mood Chart Painter
 class MoodChartPainter extends CustomPainter {
+  final List<double> data;
+
+  MoodChartPainter(this.data);
+
   @override
   void paint(Canvas canvas, Size size) {
+    if (data.isEmpty || data.every((d) => d == 0)) {
+      return;
+    }
+
     final paint = Paint()
-      ..color = const Color(0xFF62FF54).withOpacity(0.3)
+      ..color = const Color(0xFF61FF8F).withOpacity(0.3)
       ..style = PaintingStyle.fill;
 
     final linePaint = Paint()
-      ..color = const Color(0xFF62FF54)
+      ..color = const Color(0xFF61FF8F)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.5;
 
+    final points = data.isNotEmpty ? data : [0.6, 0.4, 0.7, 0.3, 0.8, 0.2, 0.5];
+
+    // Normalize to 0-1 range
+    final maxValue = points.where((p) => p > 0).isEmpty 
+        ? 5.0 
+        : points.reduce((a, b) => a > b ? a : b);
+    final normalizedPoints = points.map((p) => 1 - (p / maxValue)).toList();
+
     final path = Path();
-    final points = [0.6, 0.4, 0.7, 0.3, 0.8, 0.2, 0.5];
+    path.moveTo(0, size.height * normalizedPoints[0]);
 
-    path.moveTo(0, size.height * points[0]);
-
-    for (int i = 0; i < points.length; i++) {
-      final x = (size.width / (points.length - 1)) * i;
-      final y = size.height * points[i];
+    for (int i = 0; i < normalizedPoints.length; i++) {
+      final x = (size.width / (normalizedPoints.length - 1)) * i;
+      final y = size.height * normalizedPoints[i];
       if (i == 0) {
         path.lineTo(x, y);
       } else {
-        final prevX = (size.width / (points.length - 1)) * (i - 1);
-        final prevY = size.height * points[i - 1];
+        final prevX = (size.width / (normalizedPoints.length - 1)) * (i - 1);
+        final prevY = size.height * normalizedPoints[i - 1];
         final cpX = (prevX + x) / 2;
         path.quadraticBezierTo(cpX, prevY, x, y);
       }
@@ -765,25 +903,4 @@ class MoodChartPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(CustomPainter oldDelegate) => false;
-}
-
-
-
-class GoalSettingScreen extends StatelessWidget {
-  const GoalSettingScreen({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF62FF54),
-      appBar: AppBar(
-        title: const Text('Set Your Goals'),
-        backgroundColor: const Color(0xFF62FF54),
-        elevation: 0,
-      ),
-      body: const Center(
-        child: Text('Goal Setting Screen - To be implemented'),
-      ),
-    );
-  }
 }

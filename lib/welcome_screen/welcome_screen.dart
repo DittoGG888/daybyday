@@ -1,10 +1,7 @@
+// welcome_screen.dart
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:daybyday/firebase_options.dart';
 import 'package:daybyday/welcome_screen/login_screen.dart';
 import 'package:daybyday/welcome_screen/signup_screen.dart';
-import 'package:daybyday/home_screen/home_screen.dart';
 
 class WelcomeScreen extends StatelessWidget {
   const WelcomeScreen({Key? key}) : super(key: key);
@@ -12,124 +9,205 @@ class WelcomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF62FF54),
+      backgroundColor: const Color(0xFF61FF8F),
       body: SafeArea(
-        child: Container(
-          width: double.infinity,
-          height: double.infinity,
-          decoration: const BoxDecoration(
-            color: Color(0xFF62FF54),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 40.0),
-          child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                /* // Hero Image
-                Container(
-                  height: 200,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    gradient: const LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        Color(0xFF2D5A45),
-                        Color(0xFF94C9B0),
-                        Color(0xFFE8F5EE),
-                      ],
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // App Logo/Branding
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.black87,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.spa,
+                      color: Color(0xFF61FF8F),
+                      size: 24,
                     ),
                   ),
-                ), */
-                
-                // Tagline and Description
-                
-                Column(
-                  children: [
-                    const Text(
-                      'A kinder way to grow.',
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                      textAlign: TextAlign.center,
+                  const SizedBox(width: 12),
+                  const Text(
+                    'BLOOM',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                      letterSpacing: 1.5,
                     ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'Your personal assistant for tracking moods,\nbuilding habits, and finding clarity every day.',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.black54,
-                        height: 1.5,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 40),
-                    
-                    // Get Started Button
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const SignUpScreen(),
-                            ),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: const Color(0xFF62FF54),
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          elevation: 0,
-                        ),
-                        child: const Text(
-                          'Get Started',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
+                  ),
+                ],
+              ),
+              
+              const Spacer(),
+
+              // Animated Circles with Icon
+              Center(
+                child: SizedBox(
+                  width: 200,
+                  height: 200,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      // Outer circle
+                      Container(
+                        width: 200,
+                        height: 200,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.black87.withOpacity(0.1),
+                            width: 1,
                           ),
                         ),
                       ),
-                    ),
-                    
-                    const SizedBox(height: 12),
-                    
-                    // Log In Button
-                    SizedBox(
-                      width: double.infinity,
-                      child: TextButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const LoginScreen(),
-                            ),
-                          );
-                        },
-                        style: TextButton.styleFrom(
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                        ),
-                        child: const Text(
-                          'Log In',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
+                      // Middle circle
+                      Container(
+                        width: 140,
+                        height: 140,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.black87.withOpacity(0.15),
+                            width: 1,
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                      // Inner circle with icon
+                      Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.black87.withOpacity(0.1),
+                        ),
+                        child: const Icon(
+                          Icons.self_improvement,
+                          size: 40,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      // Small decorative dots
+                      Positioned(
+                        top: 10,
+                        right: 40,
+                        child: Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.black87.withOpacity(0.3),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        bottom: 50,
+                        left: 20,
+                        child: Container(
+                          width: 6,
+                          height: 6,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.black87.withOpacity(0.3),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ],
-            ),
+              ),
+
+              const Spacer(),
+
+              // Main Headline
+              const Text(
+                'Understand\nYourself\nBetter.',
+                style: TextStyle(
+                  fontSize: 42,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                  height: 1.2,
+                ),
+              ),
+              const SizedBox(height: 32),
+
+              // Feature List
+              const _FeatureItem(text: 'Daily mood tracking'),
+              const SizedBox(height: 16),
+              const _FeatureItem(text: 'Personalized growth habits'),
+              const SizedBox(height: 16),
+              const _FeatureItem(text: 'Clarity through reflection'),
+              
+              const Spacer(),
+
+              // Start Your Journey Button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const SignUpScreen(),
+                      ),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1A2F26),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 18),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: const Text(
+                    'Start Your Journey',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // I already have an account Button
+              SizedBox(
+                width: double.infinity,
+                child: TextButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const LoginScreen(),
+                      ),
+                    );
+                  },
+                  style: TextButton.styleFrom(
+                    backgroundColor: Colors.white.withOpacity(0.3),
+                    foregroundColor: Colors.black87,
+                    padding: const EdgeInsets.symmetric(vertical: 18),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  child: const Text(
+                    'I already have an account',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
           ),
         ),
       ),
@@ -137,182 +215,38 @@ class WelcomeScreen extends StatelessWidget {
   }
 }
 
-// Sign Up Screen
-class SignUpScreen extends StatefulWidget {
-  const SignUpScreen({Key? key}) : super(key: key);
+// Feature Item Widget
+class _FeatureItem extends StatelessWidget {
+  final String text;
 
-  @override
-  State<SignUpScreen> createState() => _SignUpScreenState();
-}
-
-class _SignUpScreenState extends State<SignUpScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
-  final _nameController = TextEditingController();
-  bool _isLoading = false;
-
-  Future<void> _signUp() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() => _isLoading = true);
-      
-      try {
-        await FirebaseAuth.instance.createUserWithEmailAndPassword(
-          email: _emailController.text.trim(),
-          password: _passwordController.text.trim(),
-        );
-        
-        // Update display name
-        await FirebaseAuth.instance.currentUser?.updateDisplayName(
-          _nameController.text.trim(),
-        );
-        
-        if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const HomeScreen()),
-          );
-        }
-      } on FirebaseAuthException catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.message ?? 'Sign up failed')),
-        );
-      } finally {
-        if (mounted) setState(() => _isLoading = false);
-      }
-    }
-  }
+  const _FeatureItem({required this.text});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF62FF54),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Create Account',
-                  style: TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Start your journey to better self-awareness',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.white70,
-                  ),
-                ),
-                const SizedBox(height: 40),
-                
-                // Name Field
-                TextFormField(
-                  controller: _nameController,
-                  decoration: InputDecoration(
-                    labelText: 'Name',
-                    filled: true,
-                    fillColor: Colors.white,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                  validator: (value) =>
-                      value?.isEmpty ?? true ? 'Please enter your name' : null,
-                ),
-                const SizedBox(height: 16),
-                
-                // Email Field
-                TextFormField(
-                  controller: _emailController,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: InputDecoration(
-                    labelText: 'Email',
-                    filled: true,
-                    fillColor: Colors.white,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                  validator: (value) {
-                    if (value?.isEmpty ?? true) return 'Please enter your email';
-                    if (!value!.contains('@')) return 'Please enter a valid email';
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                
-                // Password Field
-                TextFormField(
-                  controller: _passwordController,
-                  obscureText: true,
-                  decoration: InputDecoration(
-                    labelText: 'Password',
-                    filled: true,
-                    fillColor: Colors.white,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                  validator: (value) {
-                    if (value?.isEmpty ?? true) return 'Please enter a password';
-                    if (value!.length < 6) return 'Password must be at least 6 characters';
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 32),
-                
-                // Sign Up Button
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _signUp,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: const Color(0xFF62FF54),
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    child: _isLoading
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text(
-                            'Sign Up',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                  ),
-                ),
-              ],
-            ),
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: Colors.black87.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: const Icon(
+            Icons.check,
+            size: 16,
+            color: Colors.black87,
           ),
         ),
-      ),
+        const SizedBox(width: 12),
+        Text(
+          text,
+          style: const TextStyle(
+            fontSize: 16,
+            color: Colors.black87,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
     );
   }
 }

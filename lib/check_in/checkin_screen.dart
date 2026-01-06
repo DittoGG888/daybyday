@@ -1,13 +1,12 @@
+import 'package:daybyday/services/checkin_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 class CheckInScreen extends StatefulWidget {
   final String timeOfDay; // 'morning', 'evening', or 'night'
 
-  const CheckInScreen({
-    Key? key,
-    required this.timeOfDay,
-  }) : super(key: key);
+  const CheckInScreen({Key? key, required this.timeOfDay}) : super(key: key);
 
   @override
   State<CheckInScreen> createState() => _CheckInScreenState();
@@ -19,6 +18,52 @@ class _CheckInScreenState extends State<CheckInScreen> {
   int? selectedTaskEffectiveness;
   String? customMoodText;
   final TextEditingController _reflectionController = TextEditingController();
+  // Add this to your _CheckInScreenState class:
+  final _checkInService = CheckInService();
+
+  void _saveCheckIn() async {
+    if (!canSave) return;
+
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null) return;
+
+    try {
+      // Save to Firestore
+      await _checkInService.saveCheckIn(
+        userId: userId,
+        date: DateFormat('yyyy-MM-dd').format(DateTime.now()),
+        timeOfDay: widget.timeOfDay,
+        moodLabel: selectedMoodLabel!,
+        moodScore: selectedMoodScore!,
+        taskEffectiveness: selectedTaskEffectiveness!,
+        reflection: _reflectionController.text.isNotEmpty
+            ? _reflectionController.text
+            : null,
+      );
+
+      // Show success and return
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${widget.timeOfDay.capitalize()} check-in saved!'),
+            backgroundColor: const Color(0xFF61FF8F),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error saving check-in: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
 
   // Mood options
   final List<String> moodOptions = [
@@ -29,7 +74,7 @@ class _CheckInScreenState extends State<CheckInScreen> {
     'Low',
     'Okay',
     'Happy',
-    'Stressed'
+    'Stressed',
   ];
 
   // Mood score labels with emojis
@@ -84,37 +129,6 @@ class _CheckInScreenState extends State<CheckInScreen> {
   bool get shouldShowReflectionPrompt =>
       widget.timeOfDay == 'night' && (selectedMoodScore ?? 5) <= 2;
 
-  void _saveCheckIn() {
-    if (!canSave) return;
-
-    // Create check-in data
-    final checkInData = {
-      'date': DateFormat('yyyy-MM-dd').format(DateTime.now()),
-      'timeOfDay': widget.timeOfDay,
-      'moodLabel': selectedMoodLabel,
-      'moodScore': selectedMoodScore,
-      'taskEffectiveness': selectedTaskEffectiveness,
-      'reflection': _reflectionController.text.isNotEmpty
-          ? _reflectionController.text
-          : null,
-      'createdAt': DateTime.now().toIso8601String(),
-    };
-
-    // TODO: Save to Firestore
-    print('Saving check-in: $checkInData');
-
-    // Show success and return
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('${widget.timeOfDay.capitalize()} check-in saved!'),
-        backgroundColor: const Color(0xFF61FF8F),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-
-    Navigator.pop(context, true);
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -128,10 +142,7 @@ class _CheckInScreenState extends State<CheckInScreen> {
         ),
         title: const Text(
           'Daily Check-in',
-          style: TextStyle(
-            color: Colors.black87,
-            fontWeight: FontWeight.w600,
-          ),
+          style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w600),
         ),
         actions: [
           Padding(
@@ -139,10 +150,7 @@ class _CheckInScreenState extends State<CheckInScreen> {
             child: Center(
               child: Text(
                 DateFormat('MMM dd').format(DateTime.now()),
-                style: const TextStyle(
-                  color: Colors.black87,
-                  fontSize: 14,
-                ),
+                style: const TextStyle(color: Colors.black87, fontSize: 14),
               ),
             ),
           ),
@@ -157,10 +165,7 @@ class _CheckInScreenState extends State<CheckInScreen> {
               // Time of day indicator
               Row(
                 children: [
-                  Text(
-                    timeIcon,
-                    style: const TextStyle(fontSize: 24),
-                  ),
+                  Text(timeIcon, style: const TextStyle(fontSize: 24)),
                   const SizedBox(width: 8),
                   Text(
                     '${widget.timeOfDay.capitalize()} Check-in',
@@ -208,7 +213,9 @@ class _CheckInScreenState extends State<CheckInScreen> {
                         borderRadius: BorderRadius.circular(20),
                         border: isSelected
                             ? Border.all(
-                                color: const Color(0xFF2D5A45), width: 2)
+                                color: const Color(0xFF2D5A45),
+                                width: 2,
+                              )
                             : null,
                       ),
                       child: Row(
@@ -371,17 +378,11 @@ class _CheckInScreenState extends State<CheckInScreen> {
                   children: [
                     Text(
                       'Very ineffective',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Colors.grey[700],
-                      ),
+                      style: TextStyle(fontSize: 11, color: Colors.grey[700]),
                     ),
                     Text(
                       'Very effective',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Colors.grey[700],
-                      ),
+                      style: TextStyle(fontSize: 11, color: Colors.grey[700]),
                     ),
                   ],
                 ),
@@ -414,10 +415,7 @@ class _CheckInScreenState extends State<CheckInScreen> {
                       const SizedBox(height: 4),
                       Text(
                         'Optional - you can skip this',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey[600],
-                        ),
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                       ),
                       const SizedBox(height: 12),
                       TextField(
@@ -458,10 +456,7 @@ class _CheckInScreenState extends State<CheckInScreen> {
                   ),
                   child: const Text(
                     'Save Check-in',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                   ),
                 ),
               ),

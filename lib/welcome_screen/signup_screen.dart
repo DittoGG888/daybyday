@@ -1,3 +1,4 @@
+import 'package:daybyday/services/user_service.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -5,134 +6,7 @@ import 'package:daybyday/firebase_options.dart';
 import 'package:daybyday/welcome_screen/login_screen.dart';
 import 'package:daybyday/welcome_screen/signup_screen.dart';
 import 'package:daybyday/home_screen/home_screen.dart';
-
-class WelcomeScreen extends StatelessWidget {
-  const WelcomeScreen({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF62FF54),
-      body: SafeArea(
-        child: Container(
-          width: double.infinity,
-          height: double.infinity,
-          decoration: const BoxDecoration(
-            color: Color(0xFF62FF54),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 40.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              // Hero Image
-              Container(
-                height: 200,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  gradient: const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Color(0xFF2D5A45),
-                      Color(0xFF94C9B0),
-                      Color(0xFFE8F5EE),
-                    ],
-                  ),
-                ),
-              ),
-              
-              // Tagline and Description
-              Column(
-                children: [
-                  const Text(
-                    'A kinder way to grow.',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Your personal assistant for tracking moods,\nbuilding habits, and finding clarity every day.',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.black54,
-                      height: 1.5,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 40),
-                  
-                  // Get Started Button
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const SignUpScreen(),
-                          ),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: const Color(0xFF62FF54),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        elevation: 0,
-                      ),
-                      child: const Text(
-                        'Get Started',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 12),
-                  
-                  // Log In Button
-                  SizedBox(
-                    width: double.infinity,
-                    child: TextButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const LoginScreen(),
-                          ),
-                        );
-                      },
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                      ),
-                      child: const Text(
-                        'Log In',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
+// Sign Up Screen
 
 // Sign Up Screen
 class SignUpScreen extends StatefulWidget {
@@ -147,6 +21,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _nameController = TextEditingController();
+  final _userService = UserService();
   bool _isLoading = false;
 
   Future<void> _signUp() async {
@@ -154,14 +29,20 @@ class _SignUpScreenState extends State<SignUpScreen> {
       setState(() => _isLoading = true);
       
       try {
-        await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        // Create Firebase Auth user
+        final credential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
           email: _emailController.text.trim(),
           password: _passwordController.text.trim(),
         );
         
         // Update display name
-        await FirebaseAuth.instance.currentUser?.updateDisplayName(
-          _nameController.text.trim(),
+        await credential.user?.updateDisplayName(_nameController.text.trim());
+        
+        // Create user profile in Firestore
+        await _userService.createUserProfile(
+          uid: credential.user!.uid,
+          name: _nameController.text.trim(),
+          email: _emailController.text.trim(),
         );
         
         if (mounted) {
@@ -172,7 +53,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
         }
       } on FirebaseAuthException catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.message ?? 'Sign up failed')),
+          SnackBar(
+            content: Text(e.message ?? 'Sign up failed'),
+            backgroundColor: Colors.red,
+          ),
         );
       } finally {
         if (mounted) setState(() => _isLoading = false);
@@ -183,12 +67,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF62FF54),
+      backgroundColor: const Color(0xFF61FF8F),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: const Icon(Icons.arrow_back, color: Colors.black87),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -205,15 +89,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   style: TextStyle(
                     fontSize: 32,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: Colors.black87,
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
+                Text(
                   'Start your journey to better self-awareness',
                   style: TextStyle(
                     fontSize: 16,
-                    color: Colors.white70,
+                    color: Colors.black87.withOpacity(0.6),
                   ),
                 ),
                 const SizedBox(height: 40),
@@ -221,12 +105,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 // Name Field
                 TextFormField(
                   controller: _nameController,
+                  style: const TextStyle(color: Colors.black87),
                   decoration: InputDecoration(
                     labelText: 'Name',
+                    labelStyle: TextStyle(color: Colors.grey[700]),
                     filled: true,
                     fillColor: Colors.white,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(16),
                       borderSide: BorderSide.none,
                     ),
                   ),
@@ -239,12 +125,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 TextFormField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
+                  style: const TextStyle(color: Colors.black87),
                   decoration: InputDecoration(
                     labelText: 'Email',
+                    labelStyle: TextStyle(color: Colors.grey[700]),
                     filled: true,
                     fillColor: Colors.white,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(16),
                       borderSide: BorderSide.none,
                     ),
                   ),
@@ -260,12 +148,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 TextFormField(
                   controller: _passwordController,
                   obscureText: true,
+                  style: const TextStyle(color: Colors.black87),
                   decoration: InputDecoration(
                     labelText: 'Password',
+                    labelStyle: TextStyle(color: Colors.grey[700]),
                     filled: true,
                     fillColor: Colors.white,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(16),
                       borderSide: BorderSide.none,
                     ),
                   ),
@@ -283,18 +173,23 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   child: ElevatedButton(
                     onPressed: _isLoading ? null : _signUp,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: const Color(0xFF62FF54),
-                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      backgroundColor: const Color(0xFF1A2F26),
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: Colors.grey[400],
+                      padding: const EdgeInsets.symmetric(vertical: 18),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(16),
                       ),
+                      elevation: 0,
                     ),
                     child: _isLoading
                         ? const SizedBox(
                             height: 20,
                             width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
                           )
                         : const Text(
                             'Sign Up',
@@ -311,5 +206,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    _nameController.dispose();
+    super.dispose();
   }
 }

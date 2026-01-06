@@ -1,3 +1,6 @@
+import 'package:daybyday/services/assessment_service.dart';
+import 'package:daybyday/services/user_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 // Assessment Question Model
@@ -30,6 +33,40 @@ class _PsychologicalAssessmentScreenState
   int currentQuestionIndex = 0;
   Map<int, int> answers = {}; // questionId -> response (1-5)
 
+  // Add these to your _PsychologicalAssessmentScreenState class:
+  final _assessmentService = AssessmentService();
+  final _userService = UserService();
+
+  void _completeAssessment() async {
+    final results = _calculateScores();
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+
+    if (userId != null) {
+      try {
+        // Save assessment results
+        await _assessmentService.saveAssessmentResults(
+          userId: userId,
+          results: results,
+        );
+
+        // Mark assessment as completed
+        await _userService.markAssessmentCompleted(userId);
+      } catch (e) {
+        print('Error saving assessment: $e');
+      }
+    }
+
+    // Navigate to results screen
+    if (mounted) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => AssessmentResultsScreen(results: results),
+        ),
+      );
+    }
+  }
+
   // Define all 21 questions
   final List<AssessmentQuestion> questions = [
     // MODULE 1: Personality Tendencies (Big Five)
@@ -43,7 +80,7 @@ class _PsychologicalAssessmentScreenState
         'Disagree',
         'Neutral',
         'Agree',
-        'Strongly agree'
+        'Strongly agree',
       ],
     ),
     AssessmentQuestion(
@@ -55,7 +92,7 @@ class _PsychologicalAssessmentScreenState
         'Disagree',
         'Neutral',
         'Agree',
-        'Strongly agree'
+        'Strongly agree',
       ],
     ),
     // Conscientiousness
@@ -68,7 +105,7 @@ class _PsychologicalAssessmentScreenState
         'Disagree',
         'Neutral',
         'Agree',
-        'Strongly agree'
+        'Strongly agree',
       ],
     ),
     AssessmentQuestion(
@@ -80,7 +117,7 @@ class _PsychologicalAssessmentScreenState
         'Disagree',
         'Neutral',
         'Agree',
-        'Strongly agree'
+        'Strongly agree',
       ],
     ),
     // Extraversion
@@ -93,7 +130,7 @@ class _PsychologicalAssessmentScreenState
         'Disagree',
         'Neutral',
         'Agree',
-        'Strongly agree'
+        'Strongly agree',
       ],
     ),
     AssessmentQuestion(
@@ -105,7 +142,7 @@ class _PsychologicalAssessmentScreenState
         'Disagree',
         'Neutral',
         'Agree',
-        'Strongly agree'
+        'Strongly agree',
       ],
     ),
     // Agreeableness
@@ -118,7 +155,7 @@ class _PsychologicalAssessmentScreenState
         'Disagree',
         'Neutral',
         'Agree',
-        'Strongly agree'
+        'Strongly agree',
       ],
     ),
     AssessmentQuestion(
@@ -130,7 +167,7 @@ class _PsychologicalAssessmentScreenState
         'Disagree',
         'Neutral',
         'Agree',
-        'Strongly agree'
+        'Strongly agree',
       ],
     ),
     // Emotional Sensitivity
@@ -143,7 +180,7 @@ class _PsychologicalAssessmentScreenState
         'Disagree',
         'Neutral',
         'Agree',
-        'Strongly agree'
+        'Strongly agree',
       ],
     ),
     AssessmentQuestion(
@@ -155,7 +192,7 @@ class _PsychologicalAssessmentScreenState
         'Disagree',
         'Neutral',
         'Agree',
-        'Strongly agree'
+        'Strongly agree',
       ],
     ),
 
@@ -169,7 +206,7 @@ class _PsychologicalAssessmentScreenState
         'Rarely',
         'Sometimes',
         'Often',
-        'Almost always'
+        'Almost always',
       ],
     ),
     AssessmentQuestion(
@@ -181,7 +218,7 @@ class _PsychologicalAssessmentScreenState
         'Rarely',
         'Sometimes',
         'Often',
-        'Almost always'
+        'Almost always',
       ],
       isReverse: true,
     ),
@@ -194,7 +231,7 @@ class _PsychologicalAssessmentScreenState
         'Rarely',
         'Sometimes',
         'Often',
-        'Almost always'
+        'Almost always',
       ],
     ),
     AssessmentQuestion(
@@ -206,7 +243,7 @@ class _PsychologicalAssessmentScreenState
         'Rarely',
         'Sometimes',
         'Often',
-        'Almost always'
+        'Almost always',
       ],
     ),
 
@@ -220,7 +257,7 @@ class _PsychologicalAssessmentScreenState
         'Disagree',
         'Neutral',
         'Agree',
-        'Strongly agree'
+        'Strongly agree',
       ],
     ),
     AssessmentQuestion(
@@ -232,7 +269,7 @@ class _PsychologicalAssessmentScreenState
         'Disagree',
         'Neutral',
         'Agree',
-        'Strongly agree'
+        'Strongly agree',
       ],
     ),
     AssessmentQuestion(
@@ -244,7 +281,7 @@ class _PsychologicalAssessmentScreenState
         'Disagree',
         'Neutral',
         'Agree',
-        'Strongly agree'
+        'Strongly agree',
       ],
       isReverse: true,
     ),
@@ -257,7 +294,7 @@ class _PsychologicalAssessmentScreenState
         'Disagree',
         'Neutral',
         'Agree',
-        'Strongly agree'
+        'Strongly agree',
       ],
     ),
 
@@ -271,7 +308,7 @@ class _PsychologicalAssessmentScreenState
         'Disagree',
         'Neutral',
         'Agree',
-        'Strongly agree'
+        'Strongly agree',
       ],
     ),
     AssessmentQuestion(
@@ -283,7 +320,7 @@ class _PsychologicalAssessmentScreenState
         'Disagree',
         'Neutral',
         'Agree',
-        'Strongly agree'
+        'Strongly agree',
       ],
     ),
     AssessmentQuestion(
@@ -295,7 +332,7 @@ class _PsychologicalAssessmentScreenState
         'Disagree',
         'Neutral',
         'Agree',
-        'Strongly agree'
+        'Strongly agree',
       ],
     ),
   ];
@@ -319,18 +356,6 @@ class _PsychologicalAssessmentScreenState
         currentQuestionIndex--;
       });
     }
-  }
-
-  void _completeAssessment() {
-    final results = _calculateScores();
-    
-    // Navigate to results screen
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (context) => AssessmentResultsScreen(results: results),
-      ),
-    );
   }
 
   Map<String, dynamic> _calculateScores() {
@@ -457,8 +482,9 @@ class _PsychologicalAssessmentScreenState
                   child: LinearProgressIndicator(
                     value: progress,
                     backgroundColor: Colors.white.withOpacity(0.3),
-                    valueColor:
-                        const AlwaysStoppedAnimation<Color>(Color(0xFF2D5A45)),
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      Color(0xFF2D5A45),
+                    ),
                     minHeight: 8,
                   ),
                 ),
@@ -475,7 +501,7 @@ class _PsychologicalAssessmentScreenState
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: 20),
-                    
+
                     // Question Text
                     Container(
                       padding: const EdgeInsets.all(24),
@@ -622,10 +648,7 @@ class _PsychologicalAssessmentScreenState
                     ? 'Your answer has been recorded. Tap another option to change it.'
                     : 'Processing your results...',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.grey[800],
-                ),
+                style: TextStyle(fontSize: 13, color: Colors.grey[800]),
               ),
             ),
         ],
@@ -639,7 +662,7 @@ class AssessmentResultsScreen extends StatelessWidget {
   final Map<String, dynamic> results;
 
   const AssessmentResultsScreen({Key? key, required this.results})
-      : super(key: key);
+    : super(key: key);
 
   String _getInterpretation(int score) {
     if (score < 40) return 'Low';
@@ -657,10 +680,7 @@ class AssessmentResultsScreen extends StatelessWidget {
         automaticallyImplyLeading: false,
         title: const Text(
           'Your Profile',
-          style: TextStyle(
-            color: Colors.black87,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold),
         ),
       ),
       body: SingleChildScrollView(
@@ -677,11 +697,7 @@ class AssessmentResultsScreen extends StatelessWidget {
               ),
               child: const Column(
                 children: [
-                  Icon(
-                    Icons.check_circle,
-                    color: Color(0xFF61FF8F),
-                    size: 64,
-                  ),
+                  Icon(Icons.check_circle, color: Color(0xFF61FF8F), size: 64),
                   SizedBox(height: 16),
                   Text(
                     'Assessment Complete!',
@@ -695,10 +711,7 @@ class AssessmentResultsScreen extends StatelessWidget {
                   Text(
                     'We\'ve created your personalized profile',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey,
-                    ),
+                    style: TextStyle(fontSize: 14, color: Colors.grey),
                   ),
                 ],
               ),
@@ -709,14 +722,11 @@ class AssessmentResultsScreen extends StatelessWidget {
             _ResultSection(
               title: 'Personality Traits',
               items: {
-                'Openness':
-                    results['personality']['openness'],
+                'Openness': results['personality']['openness'],
                 'Conscientiousness':
                     results['personality']['conscientiousness'],
-                'Extraversion':
-                    results['personality']['extraversion'],
-                'Agreeableness':
-                    results['personality']['agreeableness'],
+                'Extraversion': results['personality']['extraversion'],
+                'Agreeableness': results['personality']['agreeableness'],
                 'Emotional Sensitivity':
                     results['personality']['emotionalSensitivity'],
               },
@@ -727,12 +737,9 @@ class AssessmentResultsScreen extends StatelessWidget {
             _ResultSection(
               title: 'Emotional Baseline',
               items: {
-                'Stability':
-                    results['emotionalBaseline']['stability'],
-                'Stress Load':
-                    results['emotionalBaseline']['stressLoad'],
-                'Optimism':
-                    results['emotionalBaseline']['optimism'],
+                'Stability': results['emotionalBaseline']['stability'],
+                'Stress Load': results['emotionalBaseline']['stressLoad'],
+                'Optimism': results['emotionalBaseline']['optimism'],
               },
             ),
             const SizedBox(height: 16),
@@ -741,14 +748,10 @@ class AssessmentResultsScreen extends StatelessWidget {
             _ResultSection(
               title: 'Motivation',
               items: {
-                'Autonomy':
-                    results['motivation']['autonomy'],
-                'Small Steps Preference':
-                    results['motivation']['smallSteps'],
-                'Task Initiation':
-                    results['motivation']['initiation'],
-                'Progress Focus':
-                    results['motivation']['progressFocus'],
+                'Autonomy': results['motivation']['autonomy'],
+                'Small Steps Preference': results['motivation']['smallSteps'],
+                'Task Initiation': results['motivation']['initiation'],
+                'Progress Focus': results['motivation']['progressFocus'],
               },
             ),
             const SizedBox(height: 16),
@@ -757,12 +760,9 @@ class AssessmentResultsScreen extends StatelessWidget {
             _ResultSection(
               title: 'Support Style',
               items: {
-                'Reflective':
-                    results['supportStyle']['reflective'],
-                'Gentle Tone':
-                    results['supportStyle']['gentleTone'],
-                'Writing Helpful':
-                    results['supportStyle']['writingHelpful'],
+                'Reflective': results['supportStyle']['reflective'],
+                'Gentle Tone': results['supportStyle']['gentleTone'],
+                'Writing Helpful': results['supportStyle']['writingHelpful'],
               },
             ),
             const SizedBox(height: 32),
@@ -786,10 +786,7 @@ class AssessmentResultsScreen extends StatelessWidget {
                 ),
                 child: const Text(
                   'Complete Setup',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                 ),
               ),
             ),
@@ -806,10 +803,7 @@ class _ResultSection extends StatelessWidget {
   final String title;
   final Map<String, int> items;
 
-  const _ResultSection({
-    required this.title,
-    required this.items,
-  });
+  const _ResultSection({required this.title, required this.items});
 
   String _getInterpretation(int score) {
     if (score < 40) return 'Low';
@@ -898,8 +892,9 @@ class _ResultSection extends StatelessWidget {
                     child: LinearProgressIndicator(
                       value: entry.value / 100,
                       backgroundColor: Colors.grey[200],
-                      valueColor:
-                          AlwaysStoppedAnimation<Color>(_getColor(entry.value)),
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        _getColor(entry.value),
+                      ),
                       minHeight: 6,
                     ),
                   ),
