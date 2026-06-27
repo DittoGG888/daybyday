@@ -1,3 +1,4 @@
+import 'package:daybyday/navigation/main_navigation.dart';
 import 'package:daybyday/services/user_service.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -6,6 +7,8 @@ import 'package:daybyday/firebase_options.dart';
 import 'package:daybyday/welcome_screen/login_screen.dart';
 import 'package:daybyday/welcome_screen/signup_screen.dart';
 import 'package:daybyday/home_screen/home_screen.dart';
+  // Add this import at the top of signup_screen.dart
+import 'package:shared_preferences/shared_preferences.dart';
 // Sign Up Screen
 
 // Sign Up Screen
@@ -24,45 +27,53 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _userService = UserService();
   bool _isLoading = false;
 
-  Future<void> _signUp() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() => _isLoading = true);
+
+
+// Update the _signUp method in _SignUpScreenState:
+
+Future<void> _signUp() async {
+  if (_formKey.currentState!.validate()) {
+    setState(() => _isLoading = true);
+    
+    try {
+      // Create Firebase Auth user
+      final credential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+      );
       
-      try {
-        // Create Firebase Auth user
-        final credential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
-          email: _emailController.text.trim(),
-          password: _passwordController.text.trim(),
+      // Update display name
+      await credential.user?.updateDisplayName(_nameController.text.trim());
+      
+      // Create user profile in Firestore
+      await _userService.createUserProfile(
+        uid: credential.user!.uid,
+        name: _nameController.text.trim(),
+        email: _emailController.text.trim(),
+      );
+      
+      // Mark onboarding as seen
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('hasSeenOnboarding', true);
+      
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const MainNavigation()),
         );
-        
-        // Update display name
-        await credential.user?.updateDisplayName(_nameController.text.trim());
-        
-        // Create user profile in Firestore
-        await _userService.createUserProfile(
-          uid: credential.user!.uid,
-          name: _nameController.text.trim(),
-          email: _emailController.text.trim(),
-        );
-        
-        if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const HomeScreen()),
-          );
-        }
-      } on FirebaseAuthException catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.message ?? 'Sign up failed'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      } finally {
-        if (mounted) setState(() => _isLoading = false);
       }
+    } on FirebaseAuthException catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.message ?? 'Sign up failed'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
+}
 
   @override
   Widget build(BuildContext context) {

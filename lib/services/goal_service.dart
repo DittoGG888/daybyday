@@ -25,7 +25,7 @@ class GoalService {
         final hasCreatedFirstGoal =
             userSnap.data()?['hasCreatedFirstGoal'] == true;
 
-        // Create goal
+        // Create goal with completion tracking
         tx.set(goalRef, {
           'description': description,
           'category': category,
@@ -34,6 +34,9 @@ class GoalService {
           'time': time,
           'isCompleted': false,
           'createdAt': FieldValue.serverTimestamp(),
+          // Add completion tracking for recurring goals
+          'completions': {}, // Map of date -> bool
+          'lastCompletedDate': null,
         });
 
         // Mark first goal only once
@@ -51,7 +54,7 @@ class GoalService {
     }
   }
 
-  // Get all goals for a user
+  // Get all goals for a user with current period completion status
   Future<List<Map<String, dynamic>>> getGoals(String userId) async {
     try {
       final snapshot = await _firestore
@@ -61,9 +64,22 @@ class GoalService {
           .orderBy('createdAt', descending: true)
           .get();
 
+      final now = DateTime.now();
+      
       return snapshot.docs.map((doc) {
         final data = doc.data();
         data['id'] = doc.id;
+        
+        // Calculate if goal is completed for current period
+        final duration = data['duration'] as String;
+        final completions = data['completions'] as Map<String, dynamic>? ?? {};
+        
+        data['isCompleted'] = _isCompletedForCurrentPeriod(
+          duration: duration,
+          completions: completions,
+          now: now,
+        );
+        
         return data;
       }).toList();
     } catch (e) {
@@ -72,7 +88,7 @@ class GoalService {
     }
   }
 
-  // Get goals by duration (daily, weekly, monthly)
+  // Get goals by duration with period-specific completion
   Future<List<Map<String, dynamic>>> getGoalsByDuration(
     String userId,
     String duration,
@@ -86,9 +102,21 @@ class GoalService {
           .orderBy('createdAt', descending: true)
           .get();
 
+      final now = DateTime.now();
+      
       return snapshot.docs.map((doc) {
         final data = doc.data();
         data['id'] = doc.id;
+        
+        // Calculate if goal is completed for current period
+        final completions = data['completions'] as Map<String, dynamic>? ?? {};
+        
+        data['isCompleted'] = _isCompletedForCurrentPeriod(
+          duration: duration,
+          completions: completions,
+          now: now,
+        );
+        
         return data;
       }).toList();
     } catch (e) {
@@ -97,21 +125,40 @@ class GoalService {
     }
   }
 
-  // Toggle goal completion
+  // Toggle goal completion for current period
   Future<void> toggleGoalCompletion(
     String userId,
     String goalId,
     bool isCompleted,
   ) async {
     try {
+      final goalDoc = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('goals')
+          .doc(goalId)
+          .get();
+
+      if (!goalDoc.exists) return;
+
+      final data = goalDoc.data()!;
+      final duration = data['duration'] as String;
+      final completions = Map<String, dynamic>.from(data['completions'] ?? {});
+      
+      final now = DateTime.now();
+      final periodKey = _getPeriodKey(duration, now);
+      
+      // Update completion for current period
+      completions[periodKey] = isCompleted;
+      
       await _firestore
           .collection('users')
           .doc(userId)
           .collection('goals')
           .doc(goalId)
           .update({
-            'isCompleted': isCompleted,
-            'completedAt': isCompleted ? FieldValue.serverTimestamp() : null,
+            'completions': completions,
+            'lastCompletedDate': isCompleted ? _formatDate(now) : data['lastCompletedDate'],
           });
     } catch (e) {
       print('Error toggling goal completion: $e');
@@ -162,7 +209,7 @@ class GoalService {
     }
   }
 
-  // Get goal completion stats
+  // Get goal completion stats for current period
   Future<Map<String, int>> getGoalStats(String userId, String duration) async {
     try {
       final goals = await getGoalsByDuration(userId, duration);
@@ -178,5 +225,124 @@ class GoalService {
       print('Error getting goal stats: $e');
       return {'completed': 0, 'total': 0, 'remaining': 0};
     }
+  }
+
+  // Helper: Check if goal is completed for current period
+  bool _isCompletedForCurrentPeriod({
+    required String duration,
+    required Map<String, dynamic> completions,
+    required DateTime now,
+  }) {
+    final periodKey = _getPeriodKey(duration, now);
+    return completions[periodKey] == true;
+  }
+
+  // Helper: Get period key for storage
+  String _getPeriodKey(String duration, DateTime date) {
+    switch (duration) {
+      case 'daily':
+        return _formatDate(date);
+      case 'weekly':
+        // Week starts on Monday
+        final monday = date.subtract(Duration(days: date.weekday - 1));
+        return 'week-${_formatDate(monday)}';
+      case 'monthly':
+        return '${date.year}-${date.month.toString().padLeft(2, '0')}';
+      case 'yearly':
+        return '${date.year}';
+      default:
+        return _formatDate(date);
+    }
+  }
+
+  // Helper: Get period date going back
+  DateTime _getPeriodDate(String duration, DateTime now, int periodsBack) {
+    switch (duration) {
+      case 'daily':
+        return now.subtract(Duration(days: periodsBack));
+      case 'weekly':
+        return now.subtract(Duration(days: periodsBack * 7));
+      case 'monthly':
+        return DateTime(now.year, now.month - periodsBack, now.day);
+      case 'yearly':
+        return DateTime(now.year - periodsBack, now.month, now.day);
+      default:
+        return now;
+    }
+  }
+
+  // Helper: Get period label for display
+  String _getPeriodLabel(String duration, DateTime date) {
+    switch (duration) {
+      case 'daily':
+        return '${date.month}/${date.day}';
+      case 'weekly':
+        final monday = date.subtract(Duration(days: date.weekday - 1));
+        return '${monday.month}/${monday.day}';
+      case 'monthly':
+        final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        return months[date.month - 1];
+      case 'yearly':
+        return '${date.year}';
+      default:
+        return _formatDate(date);
+    }
+  }
+
+  // Get goal completion history (for analytics)
+  Future<Map<String, dynamic>> getGoalCompletionHistory(
+    String userId,
+    String duration,
+    {int periodsBack = 4}
+  ) async {
+    try {
+      final snapshot = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('goals')
+          .where('duration', isEqualTo: duration)
+          .get();
+
+      final now = DateTime.now();
+      List<Map<String, dynamic>> periodData = [];
+
+      for (int i = periodsBack - 1; i >= 0; i--) {
+        final periodDate = _getPeriodDate(duration, now, i);
+        final periodKey = _getPeriodKey(duration, periodDate);
+        final periodLabel = _getPeriodLabel(duration, periodDate);
+        
+        int completed = 0;
+        int total = snapshot.docs.length;
+
+        for (var doc in snapshot.docs) {
+          final data = doc.data();
+          final completions = data['completions'] as Map<String, dynamic>? ?? {};
+          
+          if (completions[periodKey] == true) {
+            completed++;
+          }
+        }
+
+        periodData.add({
+          'period': periodLabel,
+          'completed': completed,
+          'total': total,
+          'percentage': total > 0 ? (completed / total * 100).round() : 0,
+        });
+      }
+
+      return {
+        'periods': periodData,
+        'duration': duration,
+      };
+    } catch (e) {
+      print('Error getting goal completion history: $e');
+      return {'periods': [], 'duration': duration};
+    }
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }
 }

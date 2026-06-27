@@ -1,13 +1,16 @@
 // lib/home_screen/home_screen.dart (UPDATED)
 import 'package:daybyday/assessments/asssessments.dart';
 import 'package:daybyday/check_in/checkin_screen.dart';
+import 'package:daybyday/daily_patterns/daily_patterns_screen.dart';
 import 'package:daybyday/goal_setting/goal_setting_screen.dart';
-import 'package:daybyday/services/user_service.dart';
+import 'package:daybyday/progress_overview/progess_overview.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:daybyday/services/user_service.dart';
 import 'package:daybyday/services/checkin_service.dart';
 import 'package:daybyday/services/goal_service.dart';
 import 'package:daybyday/services/analytics_service.dart';
+import 'package:daybyday/services/daily_patterns_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -21,6 +24,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final _checkInService = CheckInService();
   final _goalService = GoalService();
   final _analyticsService = AnalyticsService();
+  final _dailyPatternsService = DailyPatternsService();
   
   // Onboarding status
   bool hasCompletedPsychologicalAssessment = false;
@@ -34,10 +38,16 @@ class _HomeScreenState extends State<HomeScreen> {
   // Progress data
   List<double> weeklyMoodData = [];
   double averageMood = 0.0;
+  double previousPeriodMood = 0.0;
+  double moodChange = 0.0;
   Map<String, int> goalStats = {};
+  Map<String, String> dailyPatternsData = {};
   
   bool _isLoading = true;
   String selectedPeriod = 'Week';
+
+  // Chart-specific loading state
+  bool _isChartLoading = false;
 
   @override
   void initState() {
@@ -60,13 +70,32 @@ class _HomeScreenState extends State<HomeScreen> {
       
       // Load progress data
       final moodTrend = await _analyticsService.getWeeklyMoodTrend(userId);
+      
+      // Load previous period for comparison
+      final previousMoodTrend = await _analyticsService.getPreviousWeekMoodTrend(userId);
+      
       final stats = await _goalService.getGoalStats(userId, 'daily');
+      
+      // Load daily patterns summary
+      final patternsData = await _dailyPatternsService.getWeeklySummary(userId);
       
       // Calculate average mood
       final avg = moodTrend.where((m) => m > 0).isEmpty 
           ? 0.0 
           : moodTrend.where((m) => m > 0).reduce((a, b) => a + b) / 
             moodTrend.where((m) => m > 0).length;
+
+      // Calculate previous period average
+      final prevAvg = previousMoodTrend.where((m) => m > 0).isEmpty 
+          ? 0.0 
+          : previousMoodTrend.where((m) => m > 0).reduce((a, b) => a + b) / 
+            previousMoodTrend.where((m) => m > 0).length;
+
+      // Calculate percentage change
+      double change = 0.0;
+      if (prevAvg > 0) {
+        change = ((avg - prevAvg) / prevAvg) * 100;
+      }
 
       setState(() {
         hasCompletedPsychologicalAssessment = 
@@ -77,7 +106,10 @@ class _HomeScreenState extends State<HomeScreen> {
         hasNightCheckIn = checkInStatus['night'] ?? false;
         weeklyMoodData = moodTrend;
         averageMood = avg;
+        previousPeriodMood = prevAvg;
+        moodChange = change;
         goalStats = stats;
+        dailyPatternsData = patternsData.map((k, v) => MapEntry(k, v.toString()));
         _isLoading = false;
       });
     } catch (e) {
@@ -202,7 +234,6 @@ class _HomeScreenState extends State<HomeScreen> {
                                       const PsychologicalAssessmentScreen(),
                                 ),
                               );
-                              // Reload data after returning from assessment
                               if (mounted) {
                                 await _loadUserData();
                               }
@@ -225,7 +256,6 @@ class _HomeScreenState extends State<HomeScreen> {
                                   builder: (context) => const GoalSettingScreen(),
                                 ),
                               );
-                              // Reload data after returning from goal setting
                               if (mounted) {
                                 await _loadUserData();
                               }
@@ -332,24 +362,24 @@ class _HomeScreenState extends State<HomeScreen> {
                         _TabButton(
                           label: 'Week',
                           isSelected: selectedPeriod == 'Week',
-                          onTap: () => setState(() => selectedPeriod = 'Week'),
+                          onTap: () => _changePeriod('Week'),
                         ),
                         _TabButton(
                           label: 'Month',
                           isSelected: selectedPeriod == 'Month',
-                          onTap: () => setState(() => selectedPeriod = 'Month'),
+                          onTap: () => _changePeriod('Month'),
                         ),
                         _TabButton(
                           label: 'Year',
                           isSelected: selectedPeriod == 'Year',
-                          onTap: () => setState(() => selectedPeriod = 'Year'),
+                          onTap: () => _changePeriod('Year'),
                         ),
                       ],
                     ),
                   ),
                   const SizedBox(height: 16),
 
-                  // Mood Chart Card
+                  // Mood Chart Card with optimized loading
                   Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
@@ -359,9 +389,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Your Mood This Week',
-                          style: TextStyle(
+                        Text(
+                          _getChartTitle(selectedPeriod),
+                          style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
                             color: Colors.black87,
@@ -385,14 +415,18 @@ class _HomeScreenState extends State<HomeScreen> {
                                 vertical: 4,
                               ),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF61FF8F).withOpacity(0.2),
+                                color: (moodChange >= 0 
+                                    ? const Color(0xFF61FF8F) 
+                                    : Colors.orange).withOpacity(0.2),
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              child: const Text(
-                                'vs Last Week +5%',
+                              child: Text(
+                                'vs Last Period ${moodChange >= 0 ? '+' : ''}${moodChange.toStringAsFixed(1)}%',
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: Color(0xFF61FF8F),
+                                  color: moodChange >= 0 
+                                      ? const Color(0xFF61FF8F) 
+                                      : Colors.orange,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
@@ -400,21 +434,27 @@ class _HomeScreenState extends State<HomeScreen> {
                           ],
                         ),
                         const SizedBox(height: 20),
-                        // Placeholder for chart
+                        // Chart with loading indicator
                         SizedBox(
                           height: 120,
-                          child: CustomPaint(
-                            painter: MoodChartPainter(weeklyMoodData),
-                            child: Container(),
-                          ),
+                          child: _isChartLoading
+                              ? const Center(
+                                  child: CircularProgressIndicator(
+                                    color: Color(0xFF61FF8F),
+                                  ),
+                                )
+                              : CustomPaint(
+                                  painter: MoodChartPainter(weeklyMoodData),
+                                  child: Container(),
+                                ),
                         ),
                         const SizedBox(height: 12),
-                        // Days labels
+                        // Days/Weeks/Months labels
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: ['M', 'T', 'W', 'T', 'F', 'S', 'S']
-                              .map((day) => Text(
-                                    day,
+                          children: _getChartLabels(selectedPeriod)
+                              .map((label) => Text(
+                                    label,
                                     style: TextStyle(
                                       fontSize: 12,
                                       color: Colors.grey[600],
@@ -428,73 +468,115 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 16),
 
                   // Daily Patterns Card
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Daily Patterns',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.black87,
+                  GestureDetector(
+                    onTap: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const DailyPatternsInputScreen(),
+                        ),
+                      );
+                      _loadUserData();
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                'Daily Patterns',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                              Icon(
+                                Icons.add_circle_outline,
+                                color: const Color(0xFF61FF8F),
+                                size: 20,
+                              ),
+                            ],
                           ),
-                        ),
-                        const SizedBox(height: 16),
-                        _PatternRow(
-                          label: 'Sleep',
-                          value: 'Avg 7h10m',
-                          color: Colors.blue,
-                        ),
-                        const SizedBox(height: 12),
-                        _PatternRow(
-                          label: 'Screen Time',
-                          value: 'Avg 3h40m',
-                          color: Colors.purple,
-                        ),
-                        const SizedBox(height: 12),
-                        _PatternRow(
-                          label: 'Activity',
-                          value: 'Goal: 8,000 steps',
-                          color: Colors.orange,
-                        ),
-                      ],
+                          const SizedBox(height: 16),
+                          _PatternRow(
+                            label: 'Sleep',
+                            value: dailyPatternsData['sleep'] ?? 'No data',
+                            color: Colors.blue,
+                          ),
+                          const SizedBox(height: 12),
+                          _PatternRow(
+                            label: 'Screen Time',
+                            value: dailyPatternsData['screenTime'] ?? 'No data',
+                            color: Colors.purple,
+                          ),
+                          const SizedBox(height: 12),
+                          _PatternRow(
+                            label: 'Activity',
+                            value: dailyPatternsData['steps'] ?? 'No data',
+                            color: Colors.orange,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                   const SizedBox(height: 16),
 
                   // Goal Progress Card
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Goal Progress',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.black87,
+                  GestureDetector(
+                    onTap: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const GoalSettingScreen(),
+                        ),
+                      );
+                      _loadUserData();
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                'Goal Progress',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                              Icon(
+                                Icons.arrow_forward_ios,
+                                color: Colors.grey[400],
+                                size: 16,
+                              ),
+                            ],
                           ),
-                        ),
-                        const SizedBox(height: 16),
-                        _GoalProgressRow(
-                          goal: 'Daily Goals',
-                          progress: '${goalStats['completed']}/${goalStats['total']}',
-                          percentage: goalStats['total'] == 0 
-                              ? 0.0 
-                              : (goalStats['completed']! / goalStats['total']!),
-                        ),
-                      ],
+                          const SizedBox(height: 16),
+                          _GoalProgressRow(
+                            goal: 'Daily Goals',
+                            progress: '${goalStats['completed']}/${goalStats['total']}',
+                            percentage: goalStats['total'] == 0 
+                                ? 0.0 
+                                : (goalStats['completed']! / goalStats['total']!),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -559,14 +641,100 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   String _getMoodLabel(double avg) {
+    if (avg == 0) return 'No data yet';
     if (avg >= 4) return 'Great';
     if (avg >= 3) return 'Good';
     if (avg >= 2) return 'Okay';
     return 'Low';
   }
+
+  String _getChartTitle(String period) {
+    switch (period) {
+      case 'Week':
+        return 'Your Mood This Week';
+      case 'Month':
+        return 'Your Mood This Month';
+      case 'Year':
+        return 'Your Mood This Year';
+      default:
+        return 'Your Mood';
+    }
+  }
+
+  List<String> _getChartLabels(String period) {
+    switch (period) {
+      case 'Week':
+        return ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+      case 'Month':
+        return ['W1', 'W2', 'W3', 'W4'];
+      case 'Year':
+        final now = DateTime.now();
+        final months = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
+        List<String> yearLabels = [];
+        for (int i = 11; i >= 0; i--) {
+          final monthIndex = (now.month - i - 1) % 12;
+          yearLabels.add(months[monthIndex]);
+        }
+        return yearLabels;
+      default:
+        return [];
+    }
+  }
+
+  Future<void> _changePeriod(String period) async {
+    // Only update chart loading, not full screen
+    setState(() {
+      selectedPeriod = period;
+      _isChartLoading = true;
+    });
+
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null) return;
+
+    try {
+      List<double> moodTrend = [];
+      List<double> previousTrend = [];
+      
+      if (period == 'Week') {
+        moodTrend = await _analyticsService.getWeeklyMoodTrend(userId);
+        previousTrend = await _analyticsService.getPreviousWeekMoodTrend(userId);
+      } else if (period == 'Month') {
+        moodTrend = await _analyticsService.getMonthlyMoodTrend(userId);
+        previousTrend = await _analyticsService.getPreviousMonthMoodTrend(userId);
+      } else {
+        moodTrend = await _analyticsService.getYearlyMoodTrend(userId);
+        previousTrend = await _analyticsService.getPreviousYearMoodTrend(userId);
+      }
+
+      final avg = moodTrend.where((m) => m > 0).isEmpty 
+          ? 0.0 
+          : moodTrend.where((m) => m > 0).reduce((a, b) => a + b) / 
+            moodTrend.where((m) => m > 0).length;
+
+      final prevAvg = previousTrend.where((m) => m > 0).isEmpty 
+          ? 0.0 
+          : previousTrend.where((m) => m > 0).reduce((a, b) => a + b) / 
+            previousTrend.where((m) => m > 0).length;
+
+      double change = 0.0;
+      if (prevAvg > 0) {
+        change = ((avg - prevAvg) / prevAvg) * 100;
+      }
+
+      setState(() {
+        weeklyMoodData = moodTrend;
+        averageMood = avg;
+        moodChange = change;
+        _isChartLoading = false;
+      });
+    } catch (e) {
+      print('Error changing period: $e');
+      setState(() => _isChartLoading = false);
+    }
+  }
 }
 
-// Compact Onboarding Card
+// Widget classes remain the same...
 class _CompactOnboardingCard extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -630,7 +798,6 @@ class _CompactOnboardingCard extends StatelessWidget {
   }
 }
 
-// Check-in Card
 class _CheckInCard extends StatelessWidget {
   final IconData icon;
   final Color iconColor;
@@ -703,7 +870,6 @@ class _CheckInCard extends StatelessWidget {
   }
 }
 
-// Tab Button
 class _TabButton extends StatelessWidget {
   final String label;
   final bool isSelected;
@@ -741,7 +907,6 @@ class _TabButton extends StatelessWidget {
   }
 }
 
-// Pattern Row
 class _PatternRow extends StatelessWidget {
   final String label;
   final String value;
@@ -793,7 +958,6 @@ class _PatternRow extends StatelessWidget {
   }
 }
 
-// Goal Progress Row
 class _GoalProgressRow extends StatelessWidget {
   final String goal;
   final String progress;
@@ -843,64 +1007,4 @@ class _GoalProgressRow extends StatelessWidget {
       ],
     );
   }
-}
-
-// Simple Mood Chart Painter
-class MoodChartPainter extends CustomPainter {
-  final List<double> data;
-
-  MoodChartPainter(this.data);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (data.isEmpty || data.every((d) => d == 0)) {
-      return;
-    }
-
-    final paint = Paint()
-      ..color = const Color(0xFF61FF8F).withOpacity(0.3)
-      ..style = PaintingStyle.fill;
-
-    final linePaint = Paint()
-      ..color = const Color(0xFF61FF8F)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.5;
-
-    final points = data.isNotEmpty ? data : [0.6, 0.4, 0.7, 0.3, 0.8, 0.2, 0.5];
-
-    // Normalize to 0-1 range
-    final maxValue = points.where((p) => p > 0).isEmpty 
-        ? 5.0 
-        : points.reduce((a, b) => a > b ? a : b);
-    final normalizedPoints = points.map((p) => 1 - (p / maxValue)).toList();
-
-    final path = Path();
-    path.moveTo(0, size.height * normalizedPoints[0]);
-
-    for (int i = 0; i < normalizedPoints.length; i++) {
-      final x = (size.width / (normalizedPoints.length - 1)) * i;
-      final y = size.height * normalizedPoints[i];
-      if (i == 0) {
-        path.lineTo(x, y);
-      } else {
-        final prevX = (size.width / (normalizedPoints.length - 1)) * (i - 1);
-        final prevY = size.height * normalizedPoints[i - 1];
-        final cpX = (prevX + x) / 2;
-        path.quadraticBezierTo(cpX, prevY, x, y);
-      }
-    }
-
-    // Fill area
-    final fillPath = Path.from(path);
-    fillPath.lineTo(size.width, size.height);
-    fillPath.lineTo(0, size.height);
-    fillPath.close();
-    canvas.drawPath(fillPath, paint);
-
-    // Draw line
-    canvas.drawPath(path, linePaint);
-  }
-
-  @override
-  bool shouldRepaint(CustomPainter oldDelegate) => false;
 }

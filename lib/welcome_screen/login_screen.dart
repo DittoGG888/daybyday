@@ -1,9 +1,10 @@
+// File: lib/welcome_screen/login_screen.dart (UPDATED)
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:daybyday/home_screen/home_screen.dart';
+import 'package:daybyday/navigation/main_navigation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-// Login Screen
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
 
@@ -27,17 +28,23 @@ class _LoginScreenState extends State<LoginScreen> {
           password: _passwordController.text.trim(),
         );
 
+        // Mark onboarding as seen
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('hasSeenOnboarding', true);
+
+        // Ensure user document exists
+        final uid = FirebaseAuth.instance.currentUser?.uid;
+        if (uid != null) {
+          await FirebaseFirestore.instance.collection('users').doc(uid).set({
+            'lastLogin': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        }
+
         if (mounted) {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (context) => const HomeScreen()),
+            MaterialPageRoute(builder: (context) => const MainNavigation()),
           );
-        }
-
-        Future<void> ensureUserDocExists(String uid) async {
-          await FirebaseFirestore.instance.collection('users').doc(uid).set({
-            'createdAt': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true));
         }
       } on FirebaseAuthException catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(

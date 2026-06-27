@@ -1,5 +1,4 @@
-
-// File: lib/services/checkin_service.dart
+// File: lib/services/checkin_service.dart (ADD THIS METHOD)
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class CheckInService {
@@ -35,7 +34,7 @@ class CheckInService {
     }
   }
 
-  // Get check-ins for a specific date
+  // Get check-ins for a specific date (STRING FORMAT)
   Future<Map<String, Map<String, dynamic>>> getCheckInsForDate(
       String userId, String date) async {
     try {
