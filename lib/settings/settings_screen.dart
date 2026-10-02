@@ -1,4 +1,5 @@
 // File: lib/settings/settings_screen.dart
+import 'package:daybyday/welcome_screen/login_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:daybyday/onboarding/onboarding_flow.dart';
@@ -30,10 +31,10 @@ class SettingsScreen extends StatelessWidget {
     if (confirm == true) {
       try {
         await FirebaseAuth.instance.signOut();
-        
+
         if (context.mounted) {
           Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (context) => const OnboardingFlow()),
+            MaterialPageRoute(builder: (context) => const LoginScreen()),
             (route) => false,
           );
         }
@@ -42,7 +43,7 @@ class SettingsScreen extends StatelessWidget {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Error signing out: $e'),
-              backgroundColor: Colors.red,
+              backgroundColor: Colors.red,  
             ),
           );
         }
@@ -247,7 +248,9 @@ class SettingsScreen extends StatelessWidget {
                   onTap: () {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                        content: Text('Please contact support to delete your account'),
+                        content: Text(
+                          'Please contact support to delete your account',
+                        ),
                       ),
                     );
                   },
@@ -330,19 +333,12 @@ class _SettingsItem extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     subtitle,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[600],
-                    ),
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                   ),
                 ],
               ),
             ),
-            Icon(
-              Icons.arrow_forward_ios,
-              size: 16,
-              color: Colors.grey[400],
-            ),
+            Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey[400]),
           ],
         ),
       ),

@@ -5,6 +5,7 @@ class GoalService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   // Create a new goal
+  // lib/services/goal_service.dart
   Future<String> createGoal({
     required String userId,
     required String description,
@@ -15,17 +16,17 @@ class GoalService {
   }) async {
     try {
       final userRef = _firestore.collection('users').doc(userId);
-      final goalsRef = userRef.collection('goals').doc();
+      late final String newGoalId;
 
       await _firestore.runTransaction((tx) async {
-        final userRef = _firestore.collection('users').doc(userId);
         final goalRef = userRef.collection('goals').doc();
+        newGoalId = goalRef.id;
 
         final userSnap = await tx.get(userRef);
         final hasCreatedFirstGoal =
             userSnap.data()?['hasCreatedFirstGoal'] == true;
+        final currentCount = (userSnap.data()?['goalsCount'] ?? 0) as int;
 
-        // Create goal with completion tracking
         tx.set(goalRef, {
           'description': description,
           'category': category,
@@ -34,20 +35,17 @@ class GoalService {
           'time': time,
           'isCompleted': false,
           'createdAt': FieldValue.serverTimestamp(),
-          // Add completion tracking for recurring goals
-          'completions': {}, // Map of date -> bool
+          'completions': {},
           'lastCompletedDate': null,
         });
 
-        // Mark first goal only once
-        if (!hasCreatedFirstGoal) {
-          tx.set(userRef, {
-            'hasCreatedFirstGoal': true,
-          }, SetOptions(merge: true));
-        }
+        tx.set(userRef, {
+          'hasCreatedFirstGoal': true,
+          'goalsCount': currentCount + 1, // was never incremented before
+        }, SetOptions(merge: true));
       });
 
-      return goalsRef.id;
+      return newGoalId;
     } catch (e) {
       print('Error creating goal: $e');
       rethrow;
@@ -65,21 +63,21 @@ class GoalService {
           .get();
 
       final now = DateTime.now();
-      
+
       return snapshot.docs.map((doc) {
         final data = doc.data();
         data['id'] = doc.id;
-        
+
         // Calculate if goal is completed for current period
         final duration = data['duration'] as String;
         final completions = data['completions'] as Map<String, dynamic>? ?? {};
-        
+
         data['isCompleted'] = _isCompletedForCurrentPeriod(
           duration: duration,
           completions: completions,
           now: now,
         );
-        
+
         return data;
       }).toList();
     } catch (e) {
@@ -103,20 +101,20 @@ class GoalService {
           .get();
 
       final now = DateTime.now();
-      
+
       return snapshot.docs.map((doc) {
         final data = doc.data();
         data['id'] = doc.id;
-        
+
         // Calculate if goal is completed for current period
         final completions = data['completions'] as Map<String, dynamic>? ?? {};
-        
+
         data['isCompleted'] = _isCompletedForCurrentPeriod(
           duration: duration,
           completions: completions,
           now: now,
         );
-        
+
         return data;
       }).toList();
     } catch (e) {
@@ -144,13 +142,13 @@ class GoalService {
       final data = goalDoc.data()!;
       final duration = data['duration'] as String;
       final completions = Map<String, dynamic>.from(data['completions'] ?? {});
-      
+
       final now = DateTime.now();
       final periodKey = _getPeriodKey(duration, now);
-      
+
       // Update completion for current period
       completions[periodKey] = isCompleted;
-      
+
       await _firestore
           .collection('users')
           .doc(userId)
@@ -158,7 +156,9 @@ class GoalService {
           .doc(goalId)
           .update({
             'completions': completions,
-            'lastCompletedDate': isCompleted ? _formatDate(now) : data['lastCompletedDate'],
+            'lastCompletedDate': isCompleted
+                ? _formatDate(now)
+                : data['lastCompletedDate'],
           });
     } catch (e) {
       print('Error toggling goal completion: $e');
@@ -243,13 +243,14 @@ class GoalService {
       case 'daily':
         return _formatDate(date);
       case 'weekly':
-        // Week starts on Monday
         final monday = date.subtract(Duration(days: date.weekday - 1));
         return 'week-${_formatDate(monday)}';
       case 'monthly':
         return '${date.year}-${date.month.toString().padLeft(2, '0')}';
       case 'yearly':
         return '${date.year}';
+      case 'specific':
+        return 'once'; // one-time goal: single fixed key, not date-dependent
       default:
         return _formatDate(date);
     }
@@ -280,8 +281,20 @@ class GoalService {
         final monday = date.subtract(Duration(days: date.weekday - 1));
         return '${monday.month}/${monday.day}';
       case 'monthly':
-        final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
-                       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        final months = [
+          'Jan',
+          'Feb',
+          'Mar',
+          'Apr',
+          'May',
+          'Jun',
+          'Jul',
+          'Aug',
+          'Sep',
+          'Oct',
+          'Nov',
+          'Dec',
+        ];
         return months[date.month - 1];
       case 'yearly':
         return '${date.year}';
@@ -293,9 +306,9 @@ class GoalService {
   // Get goal completion history (for analytics)
   Future<Map<String, dynamic>> getGoalCompletionHistory(
     String userId,
-    String duration,
-    {int periodsBack = 4}
-  ) async {
+    String duration, {
+    int periodsBack = 4,
+  }) async {
     try {
       final snapshot = await _firestore
           .collection('users')
@@ -311,14 +324,15 @@ class GoalService {
         final periodDate = _getPeriodDate(duration, now, i);
         final periodKey = _getPeriodKey(duration, periodDate);
         final periodLabel = _getPeriodLabel(duration, periodDate);
-        
+
         int completed = 0;
         int total = snapshot.docs.length;
 
         for (var doc in snapshot.docs) {
           final data = doc.data();
-          final completions = data['completions'] as Map<String, dynamic>? ?? {};
-          
+          final completions =
+              data['completions'] as Map<String, dynamic>? ?? {};
+
           if (completions[periodKey] == true) {
             completed++;
           }
@@ -332,10 +346,7 @@ class GoalService {
         });
       }
 
-      return {
-        'periods': periodData,
-        'duration': duration,
-      };
+      return {'periods': periodData, 'duration': duration};
     } catch (e) {
       print('Error getting goal completion history: $e');
       return {'periods': [], 'duration': duration};
