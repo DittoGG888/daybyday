@@ -1,4 +1,5 @@
 // File: lib/navigation/main_navigation.dart
+import 'package:daybyday/chat/chat_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:daybyday/home_screen/home_screen.dart';
 import 'package:daybyday/overview/overview_screen.dart';
@@ -20,7 +21,9 @@ class _MainNavigationState extends State<MainNavigation> {
   final List<Widget> _screens = [
     const HomeScreen(),
     const OverviewScreen(),
+    const ChatScreen(),
     const JournalHubScreen(),
+    const InsightsScreen(),
     const SettingsScreen(),
   ];
 
@@ -58,16 +61,27 @@ class _MainNavigationState extends State<MainNavigation> {
                   index: 1,
                 ),
                 _buildNavItem(
+                  icon: Icons.message_outlined, 
+                  activeIcon: Icons.message, 
+                  label: 'Chat', 
+                  index: 2
+                  ),
+                _buildNavItem(
                   icon: Icons.book_outlined,
                   activeIcon: Icons.book,
                   label: 'Journal',
-                  index: 2,
+                  index: 3,
                 ),
                 _buildNavItem(
+                  icon: Icons.visibility_outlined,
+                  activeIcon: Icons.visibility,
+                  label: 'Insights',
+                  index: 4,
+                ),_buildNavItem(
                   icon: Icons.settings_outlined,
                   activeIcon: Icons.settings,
                   label: 'Settings',
-                  index: 3,
+                  index: 5,
                 ),
               ],
             ),
